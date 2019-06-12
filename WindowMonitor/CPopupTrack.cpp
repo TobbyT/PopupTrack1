@@ -165,7 +165,7 @@ BOOL CPopupTrack::ProcessEventFilterCache(lpWndEventInfo lpWndE)
 		DWORD dwTickCount = GetTickCount();
 		tmp.event = EVENT_OBJECT_SHOW;
 
-		if (!m_WndEventCache.QueryCache(lpWndE, &tmpCache))
+		if (!m_WndEventCache.QueryCache(&tmp, &tmpCache))
 		{
 			bRet = TRUE;
 			goto __Exit;
@@ -174,7 +174,7 @@ BOOL CPopupTrack::ProcessEventFilterCache(lpWndEventInfo lpWndE)
 		if (dwTickCount - tmpCache.dwTickCount > 2000)
 		{
 			// Just Del
-			m_WndEventCache.DelCache(lpWndE->hWnd);
+			m_WndEventCache.DelCacheByWnd(lpWndE->hWnd);
 		}
 
 		bRet = TRUE;
@@ -182,11 +182,31 @@ BOOL CPopupTrack::ProcessEventFilterCache(lpWndEventInfo lpWndE)
 	}
 
 	{
+		m_WndEventCache.Delay();
+		WndEventCache tmpCache;
 
+		if (m_WndEventCache.QueryCache(lpWndE, &tmpCache))
+		{
+			bRet = TRUE;
+			goto __Exit;
+		}
 	}
 
+	{
+		m_WndEventCache.Delay();
+		WndEventCache tmpCache;
+		if (!m_WndEventCache.QueryCache(lpWndE, &tmpCache))
+		{
+			m_WndEventCache.Delay();
+			m_WndEventCache.ClearAllCache();
 
-
+			
+			WndEventCache tmpCache;
+			memcpy(&tmpCache, lpWndE, sizeof(WndEventInfo));
+			tmpCache.dwTickCount = ::GetTickCount();
+			m_WndEventCache.InsertCache(tmpCache);
+		}
+	}
 
 __Exit:
 	return bRet;
@@ -246,8 +266,8 @@ BOOL CMemCache::QueryCache(lpWndEventInfo lpWndEvent, lpWndEventCache lpWndEvent
 
 	for (it = m_WndCache.begin(); it != m_WndCache.end(); it++)
 	{
-		BOOL tmp = (*it).WndEventInfot.event != lpWndEvent->event || (*it).WndEventInfot.hWnd != lpWndEvent->hWnd ||
-			(*it).WndEventInfot.idChild != lpWndEvent->idChild || (*it).WndEventInfot.idObject != lpWndEvent->idObject;
+		BOOL tmp = ((*it).WndEventInfot.event != lpWndEvent->event) || ((*it).WndEventInfot.hWnd != lpWndEvent->hWnd) ||
+			((*it).WndEventInfot.idChild != lpWndEvent->idChild) || ((*it).WndEventInfot.idObject != lpWndEvent->idObject);
 
 		if (!tmp)
 		{
@@ -266,7 +286,7 @@ BOOL CMemCache::QueryCache(lpWndEventInfo lpWndEvent, lpWndEventCache lpWndEvent
 	return bRet;
 }
 
-VOID CMemCache::DelCache(HWND hwnd)
+VOID CMemCache::DelCacheByWnd(HWND hwnd)
 {
 	m_CacheLock.Lock();
 
@@ -289,4 +309,63 @@ VOID CMemCache::DelCache(HWND hwnd)
 	}
 	m_CacheLock.Unlock();
 	return VOID();
+}
+
+VOID CMemCache::Delay()
+{
+	WndMemCache::iterator it;
+	m_CacheLock.Lock();
+	for (it = m_WndCache.begin(); it != m_WndCache.end(); it++)
+	{
+		DWORD tmp = ::GetTickCount() - (*it).dwTickCount;
+		if (tmp > 3600000) // 1Сʱ
+		{
+			break;
+		}
+	}
+
+	m_CacheLock.Unlock();
+	return VOID();
+}
+
+VOID CMemCache::InsertCache(WndEventCache WndCache)
+{
+	m_CacheLock.Lock();
+
+	m_WndCache.push_back(WndCache);
+
+	m_CacheLock.Unlock();
+
+	return ;
+}
+
+BOOL CMemCache::OutOfSize()
+{
+	BOOL bOut = FALSE;
+	m_CacheLock.Lock();
+
+	if (m_WndCache.size() > 500)
+	{
+		bOut = TRUE;
+	}
+
+	m_CacheLock.Unlock();
+	return bOut;
+}
+
+VOID CMemCache::ClearAllCache()
+{
+	if (!OutOfSize())
+	{
+		return VOID();
+	}
+	{
+		m_CacheLock.Lock();
+		m_WndCache.clear();
+		m_CacheLock.Unlock();
+
+	}
+
+
+	
 }

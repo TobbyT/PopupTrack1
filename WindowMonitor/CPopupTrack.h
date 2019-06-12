@@ -36,7 +36,17 @@ public:
 
 	BOOL QueryCache(lpWndEventInfo lpWndEvent, lpWndEventCache lpWndEventCachet);
 
-	VOID DelCache(HWND hwnd);
+	VOID DelCacheByWnd(HWND hwnd);
+
+	VOID Delay();
+
+	VOID InsertCache(WndEventCache WndCache);
+
+	BOOL OutOfSize();
+
+	VOID ClearAllCache();
+
+
 
 private:
 	CComAutoCriticalSection m_CacheLock;
